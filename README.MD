@@ -1,0 +1,77 @@
+# Kustomize plugins 
+
+## SopsSecret 
+
+This (exec) generator plugin of kustomize allows you to write a sops secret file, which is transformed to a kubernetes secret file. 
+
+```powershell
+# optional: setup editor 
+$env:EDITOR="code --wait"
+sops -pgp $env:PGP_PUBLIC_ID --encrypted-suffix "_enc" mysecret.yaml
+```
+
+This creates a new file with some template data, simply remove this data. 
+Edit the content to something like this: 
+```yaml
+apiVersion: nl.tkvw.k8s/kustomize.generators
+kind: SopsSecret
+metadata:
+    name: whatever # Just the normal required kubernetes name 
+data:
+    username_enc: tkvw # This will be encrypted by sops 
+    password_enc: mYsUper3L33tPassw0rD # This will be encrypted as well     
+```
+Now exit the editor and sops will have encrypyted the file to something like: 
+```yaml
+# mysecret.yaml
+apiVersion: nl.tkvw.k8s/kustomize.generators
+kind: SopsSecret
+metadata:
+    name: whatever
+    # Just the normal required kubernetes name 
+data:
+    username_enc: ENC[AES256_GCM,data:1KcS0g==,iv:chKnQbQu7w+vjMcT57if0zZ4bulB7PyXkCNrIgT8QeI=,tag:+enZX5VfW1eUHfEsofG36Q==,type:str]
+    # This will be encrypted by sops 
+    password_enc: ENC[AES256_GCM,data:yN9NmTKYCsT1iZuzGKXvWAW+50w=,iv:idZb1YytNckAh/7yhnbate0/hXU3+yHgB3To/KX4bIM=,tag:/iiFat1ox8ET52+e2twmFA==,type:str]
+    # This will be encrypted as well   
+sops:
+    kms: []
+    gcp_kms: []
+    azure_kv: []
+    lastmodified: '2020-02-19T11:30:13Z'
+    mac: ENC[AES256_GCM,data:DIZ/ik6Y62FZQdBd1VXdGCEODnoK9r0glRtA9r4brwehvR5OXxAlcvj/cCAHNXx/xhvKJL05n5lso804WiwBeW/edI2IKWhTBjf/gL48KIEblzP5Y9thPg3xYjbGmyzZVOAk8b94xwCTw77mhO+ofwP8RTNnTDh/2mYX9PxtX0o=,iv:+B115kt+8gq2I4/D6oKiLwHCx2QnNcShb2pTSpSEVcw=,tag:valgzNE/O21JrQBwk5d1xg==,type:str]
+    pgp:
+    -   created_at: '2020-02-19T11:30:00Z'
+        enc: "-----BEGIN PGP MESSAGE-----\r\n\r\nhQIMA7f4zbGTl7fdARAAsia3X+oTvE3/zuTJbWlMFMUXSAfoiOubP7mU14DFAi+4\r\npvUKMgoyOHiVsmj00Dw+k8EjcEQca99+kquURpvhqw1EIOs0lW5bPFKwYieP4ob2\r\nTlAOGmorPeNKzZQjLfn04NNtmGaV/HAGNA4yIhg2SNh/C2GfG1EYzky0oPL45MqT\r\nODNgYmPJpLprctoUYgF16Nn1bKITFGods7lQhplMRUtC+MF0pjHFj4H7WCkcRhLP\r\n0BZ9JqL6C0VexJe4sNf1BKPl/Yz3Uk72Mnay3T9gStL3uXB7OYChUwvRmN/TqIVZ\r\n+QvpbIQr4Bfrv8IjRn3owWZSZuahkIbYTpjnVQmGn43YtX5YMw5KOt29jgxW2hee\r\nPZa1TsR3e23oYhglT5RZVLfG4k8dgu26Y2nTIoZDrAq7fVrZlDF4sDH9FfwS07NJ\r\n9BW40KpMEAXLFb/A9upvD8GIjRTq6Y6sCx8p3SK08dqFa6dv/DFbZ6RBfHlY4xRW\r\n9oiCv3rdv9cAFQcSTqYyQD4bACMoaKeggN8uR5kGMZEY7EXWF4bUvR+Frm9V4jQw\r\nbxnmPzlGp7ExjrLbRG/nxbfpbSOaDQyQm/wciEnWQEfqLuEc0CyM2bjoSoKvi6Ic\r\nJhITNlabrQlmQ3Z6elktL/s75SAhQRZb9vSNlE064Rn09+cQL38Z1Q32wz6jY+HS\r\nUQFSkHKiTuvpHuHxyHR3vom92hLqEt36MjckVJelk/KcivzVw27e/AGJRtjYRUO+\r\nLd20q3lR9ZVZr20zyBM1ZtplotaMWuId1JEo1Isfj/rfrg==\r\n=mnr9\r\n-----END
+            PGP MESSAGE-----\r\n"
+        fp: 995ef96266c324c9a3f8e71468716673bf18cbd6
+    encrypted_suffix: _enc
+    version: 3.5.0
+```
+
+This is actually something that's addeable to git! 
+
+With the `nl.tkvw.k8s/kustomize.generators` plugin on the `$KUSTOMIZE_PLUGIN_CONFIG_ROOT` you can add this file to the `-generators` section of `kustomization.yaml`
+
+```yaml
+# kustomization.yaml
+resources:
+- deployment.yaml
+- service.yaml
+generators:
+- mysecret.yaml
+```
+
+kustomization automatically decrypts the `mysecret` file using the `SopsSecret` generator and will undo off the `secret_suffix`: 
+```yaml
+apiVersion: v1
+data:
+  password: mYsUper3L33tPassw0rD
+  username: tkvw
+kind: Secret
+metadata:
+  labels:
+    app: hello
+  name: whatever
+```
+
